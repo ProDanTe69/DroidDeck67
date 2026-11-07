@@ -31,7 +31,7 @@ internal fun FrameGenMenu(
         val lsfg = (2..4).map { FrameGen.Mode(FrameGen.ENGINE_LSFG, it) } +
             FrameGen.ADAPTIVE_TARGETS.map { FrameGen.Mode(FrameGen.ENGINE_LSFG, target = it) }
         lsfg.forEachIndexed { i, m -> item(m, enabled = lossless.ready, detail = need.takeIf { i == 0 }) }
-        if (lossless.owned) {
+        run {
             val using = when (lossless.source) {
                 Lossless.Source.STEAM -> stringResource(R.string.lsfg_using_steam)
                 Lossless.Source.IMPORT -> stringResource(R.string.lsfg_using_import)
