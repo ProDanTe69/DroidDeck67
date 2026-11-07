@@ -63,16 +63,17 @@ object Lossless {
     }
 
     @Synchronized
-    fun import(context: Context, dll: File): ImportResult {
-        if (!owned(context)) return ImportResult.NOT_OWNED
-        return when (adopt(context, dll, Source.IMPORT)) {
-            UNCHANGED -> ImportResult.UNCHANGED
-            LsfgNative.STATUS_OK -> ImportResult.UPDATED
-            LsfgNative.STATUS_UNREADABLE_FILE, LsfgNative.STATUS_NOT_PORTABLE_EXECUTABLE,
-            LsfgNative.STATUS_MISSING_SHADERS -> ImportResult.INVALID
-            else -> ImportResult.FAILED
-        }
+fun import(context: Context, dll: File): ImportResult {
+    val result = when (adopt(context, dll, Source.IMPORT)) {
+        UNCHANGED -> ImportResult.UNCHANGED
+        LsfgNative.STATUS_OK -> ImportResult.UPDATED
+        LsfgNative.STATUS_UNREADABLE_FILE, LsfgNative.STATUS_NOT_PORTABLE_EXECUTABLE,
+        LsfgNative.STATUS_MISSING_SHADERS -> ImportResult.INVALID
+        else -> ImportResult.FAILED
     }
+    if (result == ImportResult.UPDATED || result == ImportResult.UNCHANGED) markOwned(context)
+    return result
+}
 
     fun message(context: Context, result: ImportResult): String = context.getString(
         when (result) {
