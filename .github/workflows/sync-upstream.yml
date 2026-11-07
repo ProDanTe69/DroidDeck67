@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   sync:
+    if: github.repository != 'Droid-Deck/DroidDeck'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +28,7 @@ jobs:
       - name: Check and merge upstream
         env:
           GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          REPO: ${{ github.repository }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -uo pipefail
@@ -133,8 +135,8 @@ jobs:
             echo "main was NOT changed. see report below"
             cat $REPORT
             TITLE="upstream sync needs your attention ($UP_SHA)"
-            if [ -z "$(gh issue list --state open --search "$UP_SHA in:title" --json number --jq '.[0].number')" ]; then
-              gh issue create --title "$TITLE" --body-file $REPORT
+            if [ -z "$(gh issue list --repo "$REPO" --state open --search "$UP_SHA in:title" --json number --jq '.[0].number')" ]; then
+              gh issue create --repo "$REPO" --title "$TITLE" --body-file $REPORT
             fi
             exit 0
           fi
@@ -149,6 +151,6 @@ jobs:
           git tag "backup-pre-sync-$(date +%Y%m%d-%H%M)" HEAD^1
           git push origin HEAD:main --tags || {
             echo "push failed (likely upstream changed .github/workflows and the token can't push those)" | tee -a $REPORT
-            gh issue create --title "sync push failed ($UP_SHA)" --body-file $REPORT
+            gh issue create --repo "$REPO" --title "sync push failed ($UP_SHA)" --body-file $REPORT
             exit 1
           }
