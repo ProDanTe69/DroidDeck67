@@ -60,7 +60,7 @@
     <string name="frame_gen_ddfg">DD-FG %1$d×</string>
     <string name="frame_gen_lsfg">LSFG %1$d×</string>
     <string name="frame_gen_lsfg_adaptive">LSFG Adaptive %1$d</string>
-    <string name="lsfg_needs_steam">Needs Lossless Scaling on Steam</string>
+    <string name="lsfg_needs_steam">Needs Lossless Scaling — import your own copy</string>
     <string name="lsfg_needs_install">Install Lossless Scaling in Steam or import Lossless.dll</string>
     <string name="lsfg_import">Import Lossless.dll…</string>
     <string name="lsfg_using_steam">Using the copy from Steam</string>
@@ -68,7 +68,7 @@
     <string name="lsfg_pick_title">Choose Lossless.dll</string>
     <string name="lsfg_imported">Lossless.dll imported</string>
     <string name="lsfg_import_unchanged">This Lossless.dll is already in use</string>
-    <string name="lsfg_import_not_owned">Lossless Scaling is not owned on this Steam account</string>
+    <string name="lsfg_import_not_owned">Select Lossless.dll from your own copy</string>
     <string name="lsfg_import_invalid">This file is not Lossless Scaling\'s Lossless.dll</string>
     <string name="lsfg_import_failed">Could not prepare LSFG from this Lossless.dll</string>
     <string name="lsfg_problem_missing">LSFG needs Lossless Scaling from Steam or an imported Lossless.dll</string>
