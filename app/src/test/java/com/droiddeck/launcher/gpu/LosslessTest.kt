@@ -40,9 +40,9 @@ class LosslessTest {
         assertTrue(Lossless.owned(context))
     }
 
-    @Test fun importIsRefusedWithoutOwnership() {
-        val dll = File(context.cacheDir, "Lossless.dll").apply { writeText("not a dll") }
-        assertFalse(Lossless.owned(context))
-        assertEquals(Lossless.ImportResult.NOT_OWNED, Lossless.import(context, dll))
+    @Test fun importWorksWithoutPriorOwnership() {
+    val dll = File(context.cacheDir, "Lossless.dll").apply { writeText("not a dll") }
+    assertFalse(Lossless.owned(context))
+    assertEquals(Lossless.ImportResult.INVALID, Lossless.import(context, dll))
     }
 }
