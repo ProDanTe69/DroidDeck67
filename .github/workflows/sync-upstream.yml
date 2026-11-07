@@ -1,0 +1,154 @@
+name: Sync upstream (safe)
+
+on:
+  schedule:
+    - cron: '30 9 * * *'   # 3:00 pm India time
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'only check and report, never push'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Check and merge upstream
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN || github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -uo pipefail
+          git config user.name "sync-bot"
+          git config user.email "sync-bot@users.noreply.github.com"
+          git remote add upstream https://github.com/Droid-Deck/DroidDeck.git
+          git fetch upstream main --quiet
+
+          BEHIND=$(git rev-list --count HEAD..upstream/main)
+          if [ "$BEHIND" = "0" ]; then
+            echo "already up to date, nothing to do"
+            exit 0
+          fi
+
+          UP_SHA=$(git rev-parse --short upstream/main)
+          BASE=$(git merge-base HEAD upstream/main)
+          MINE=$(git diff --name-only "$BASE" HEAD | sort)
+          THEIRS=$(git diff --name-only "$BASE" upstream/main | sort)
+          OVERLAP=$(comm -12 <(echo "$MINE") <(echo "$THEIRS") | sed '/^$/d')
+
+          # protected files: any upstream change here blocks the merge
+          PROTECTED="
+          app/src/main/java/com/droiddeck/launcher/gpu/Lossless.kt
+          app/src/test/java/com/droiddeck/launcher/gpu/LosslessTest.kt
+          app/src/main/res/values/strings.xml
+          app/src/main/java/com/droiddeck/launcher/ui/FrameGenMenu.kt
+          "
+          HIT=""
+          for p in $PROTECTED; do
+            if echo "$THEIRS" | grep -qx "$p"; then HIT="$HIT $p"; fi
+          done
+          OVERLAP=$(printf "%s\n%s\n" "$OVERLAP" "$(echo $HIT | tr ' ' '\n')" | sed '/^$/d' | sort -u)
+
+          REPORT=report.md
+          echo "# upstream sync report ($UP_SHA, $BEHIND new commits)" > $REPORT
+          PROBLEM=0
+
+          # prints changed line ranges (new side) for a file
+          hunks() {
+            git diff -U0 "$1" "$2" -- "$3" | grep '^@@' \
+              | sed -E 's/^@@ -[^ ]+ \+([^ ]+) @@.*/  lines \1/'
+          }
+
+          # 1) files both sides changed, or protected files upstream changed
+          if [ -n "$OVERLAP" ]; then
+            PROBLEM=1
+            {
+              echo
+              echo "## WARNING: upstream changed files you edited or protect"
+              echo "(format is start,count = first line, number of lines)"
+              for f in $OVERLAP; do
+                echo
+                echo "### $f"
+                echo "your changed lines:"
+                hunks "$BASE" HEAD "$f"
+                echo "upstream changed lines:"
+                hunks "$BASE" upstream/main "$f"
+              done
+            } >> $REPORT
+          fi
+
+          # 2) try the merge without committing
+          git merge --no-commit --no-ff upstream/main > merge.log 2>&1
+          MERGE_RC=$?
+          CONFLICTS=$(git diff --name-only --diff-filter=U)
+
+          if [ -n "$CONFLICTS" ]; then
+            PROBLEM=1
+            {
+              echo
+              echo "## CONFLICTS"
+              for f in $CONFLICTS; do
+                echo
+                echo "### $f (line numbers are in the conflicted file)"
+                echo '```'
+                grep -nE '^(<<<<<<<|=======|>>>>>>>)' "$f"
+                echo '```'
+                echo "between <<<<<<< and ======= is YOUR version, between ======= and >>>>>>> is upstream"
+              done
+            } >> $REPORT
+          elif [ $MERGE_RC -ne 0 ]; then
+            PROBLEM=1
+            { echo; echo "## merge failed without conflict markers"; echo '```'; cat merge.log; echo '```'; } >> $REPORT
+          fi
+
+          # 3) verify your edits still exist after the test merge
+          if [ -z "$CONFLICTS" ] && [ $MERGE_RC -eq 0 ]; then
+            FG=app/src/main/java/com/droiddeck/launcher/ui/FrameGenMenu.kt
+            LT=app/src/test/java/com/droiddeck/launcher/gpu/LosslessTest.kt
+            SX=app/src/main/res/values/strings.xml
+            FAIL=""
+            [ -f "$FG" ] && ! grep -q 'if (lossless.owned) {' "$FG" || FAIL="$FAIL\n- FrameGenMenu.kt: owned gate is back or file missing"
+            [ -f "$LT" ] && grep -q 'importWorksWithoutPriorOwnership' "$LT" || FAIL="$FAIL\n- LosslessTest.kt: your test is missing"
+            [ -f "$SX" ] && grep -q 'Select Lossless.dll from your own copy' "$SX" || FAIL="$FAIL\n- strings.xml: your lsfg_import_not_owned text is missing"
+            if [ -n "$FAIL" ]; then
+              PROBLEM=1
+              { echo; echo "## YOUR EDITS ARE NOT INTACT AFTER MERGE"; printf '%b\n' "$FAIL"; } >> $REPORT
+            fi
+          fi
+
+          # 4) decide
+          if [ $PROBLEM -eq 1 ]; then
+            git merge --abort 2>/dev/null || git reset --hard HEAD
+            echo "main was NOT changed. see report below"
+            cat $REPORT
+            TITLE="upstream sync needs your attention ($UP_SHA)"
+            if [ -z "$(gh issue list --state open --search "$UP_SHA in:title" --json number --jq '.[0].number')" ]; then
+              gh issue create --title "$TITLE" --body-file $REPORT
+            fi
+            exit 0
+          fi
+
+          if [ "${DRY_RUN:-false}" = "true" ]; then
+            git merge --abort 2>/dev/null || true
+            echo "dry run: merge would be clean, nothing pushed"
+            exit 0
+          fi
+
+          git commit -m "sync: merge upstream $UP_SHA"
+          git tag "backup-pre-sync-$(date +%Y%m%d-%H%M)" HEAD^1
+          git push origin HEAD:main --tags || {
+            echo "push failed (likely upstream changed .github/workflows and the token can't push those)" | tee -a $REPORT
+            gh issue create --title "sync push failed ($UP_SHA)" --body-file $REPORT
+            exit 1
+          }
