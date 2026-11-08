@@ -1,0 +1,95 @@
+name: Sync merge (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_sha:
+        description: 'hash from the issue title, e.g. e4a4775'
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  merge:
+    if: github.repository != 'Droid-Deck/DroidDeck'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN || github.token }}
+
+      - name: Re-check and merge
+        env:
+          WANT: ${{ inputs.upstream_sha }}
+        run: |
+          set -uo pipefail
+          git config user.name "sync-bot"
+          git config user.email "sync-bot@users.noreply.github.com"
+          git remote add upstream https://github.com/Droid-Deck/DroidDeck.git
+          git fetch upstream main --quiet
+
+          if [ "${#WANT}" -lt 7 ]; then
+            echo "upstream_sha must be at least 7 characters"
+            exit 1
+          fi
+          TARGET=$(git rev-parse --verify --quiet "${WANT}^{commit}") || {
+            echo "commit $WANT not found in upstream"
+            exit 1
+          }
+          if ! git merge-base --is-ancestor "$TARGET" upstream/main; then
+            echo "$WANT is not part of upstream main"
+            exit 1
+          fi
+          if git merge-base --is-ancestor "$TARGET" HEAD; then
+            echo "already merged, nothing to do"
+            exit 0
+          fi
+          UP_SHA=$(git rev-parse --short "$TARGET")
+
+          LK=app/src/main/java/com/droiddeck/launcher/gpu/Lossless.kt
+          LT=app/src/test/java/com/droiddeck/launcher/gpu/LosslessTest.kt
+          FG=app/src/main/java/com/droiddeck/launcher/ui/FrameGenMenu.kt
+          SX=app/src/main/res/values/strings.xml
+
+          git merge --no-commit --no-ff "$TARGET" > merge.log 2>&1
+          MERGE_RC=$?
+          CONFLICTS=$(git diff --name-only --diff-filter=U)
+
+          if [ -n "$CONFLICTS" ] || [ $MERGE_RC -ne 0 ]; then
+            echo "STOP: merge has conflicts or failed. main was not changed."
+            for f in $CONFLICTS; do
+              echo "### $f"
+              grep -nE '^(<<<<<<<|=======|>>>>>>>)' "$f"
+            done
+            cat merge.log
+            git merge --abort 2>/dev/null || git reset --hard HEAD
+            exit 1
+          fi
+
+          FAIL=""
+          has()  { [ -f "$2" ] && grep -qF -- "$1" "$2" || FAIL="$FAIL\n- $3"; }
+          hasnt() { [ -f "$2" ] && ! grep -qF -- "$1" "$2" || FAIL="$FAIL\n- $3"; }
+          hasnt 'return ImportResult.NOT_OWNED' "$LK" "Lossless.kt: the NOT_OWNED early return is back"
+          has 'markOwned(context)' "$LK" "Lossless.kt: markOwned(context) is missing"
+          has 'importWorksWithoutPriorOwnership' "$LT" "LosslessTest.kt: your test is missing"
+          hasnt 'if (lossless.owned) {' "$FG" "FrameGenMenu.kt: the owned gate is back"
+          has 'Select Lossless.dll from your own copy' "$SX" "strings.xml: lsfg_import_not_owned text is missing"
+          has 'Needs Lossless Scaling' "$SX" "strings.xml: lsfg_needs_steam text is missing"
+          if [ -n "$FAIL" ]; then
+            echo "STOP: your edits are not intact after the merge. main was not changed."
+            printf '%b\n' "$FAIL"
+            git merge --abort 2>/dev/null || git reset --hard HEAD
+            exit 1
+          fi
+
+          git commit -m "sync: merge upstream $UP_SHA"
+          git tag "backup-pre-sync-$(date +%Y%m%d-%H%M)" HEAD^1
+          git push origin HEAD:main --tags || {
+            echo "push failed (likely upstream changed .github/workflows and the token lacks workflow scope)"
+            exit 1
+          }
+          echo "merged upstream $UP_SHA into main. now test the build before releasing."
