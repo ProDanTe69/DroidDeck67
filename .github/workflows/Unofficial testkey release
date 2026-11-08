@@ -1,0 +1,206 @@
+name: Unofficial testkey release
+
+# Publishes the 4 DroidDeck variants (standard, pubg, antutu, ludashi, as listed in
+# tools/release/variants.txt) as one GitHub prerelease, all signed with the public
+# AOSP testkey that Build APK already uses. No release key is needed.
+#
+# It does NOT rebuild. It takes the `droiddeck-apk` artifact of the Build APK run
+# you give it (so `standard` is exactly the apk you tested), renames the package for
+# the other variants the same way tools/release/sign-apk.sh does, and signs them with
+# keystore/testkey.p12.
+#
+# Run by hand: Actions > Unofficial testkey release > Run workflow.
+# Uses only the default token, so it can only write to this fork, and GitHub does
+# not start other workflows from a tag or release made with that token.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Build APK run id (the number at the end of the run page url)'
+        required: true
+      version:
+        description: 'Version, e.g. 1.0 (the tag becomes v1.0-unofficial-testkey)'
+        required: true
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    if: github.repository != 'Droid-Deck/DroidDeck'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Check the inputs
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::run_id must be digits only"; exit 1; }
+          [[ "$VERSION" =~ ^[0-9][0-9A-Za-z._-]*$ ]] || { echo "::error::version must look like 1.0 or 1.0.1"; exit 1; }
+          echo "TAG=v${VERSION}-unofficial-testkey" >> "$GITHUB_ENV"
+
+      - name: Refuse a tag that already has a release
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "::error::$TAG already has a release; use a new version"
+            exit 1
+          fi
+
+      - name: Check the run is a Build APK run on main
+        run: |
+          set -euo pipefail
+          info=$(gh run view "$RUN_ID" --repo "$REPO" --json workflowName,headBranch,headSha)
+          echo "$info"
+          [ "$(jq -r .workflowName <<<"$info")" = "Build APK" ] || { echo "::error::run $RUN_ID is not a Build APK run"; exit 1; }
+          [ "$(jq -r .headBranch <<<"$info")" = "main" ] || { echo "::error::run $RUN_ID is not on main"; exit 1; }
+          echo "SHA=$(jq -r .headSha <<<"$info")" >> "$GITHUB_ENV"
+
+      - name: Checkout the commit that run built (full history and tags)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the fork edits are in that commit
+        run: |
+          set -euo pipefail
+          present() { grep -qF -- "$1" "$2" || { echo "::error::$2 is missing: $1"; exit 1; }; }
+          absent() { if grep -qF -- "$1" "$2"; then echo "::error::$2 still has: $1"; exit 1; fi; }
+          L=app/src/main/java/com/droiddeck/launcher/gpu/Lossless.kt
+          T=app/src/test/java/com/droiddeck/launcher/gpu/LosslessTest.kt
+          M=app/src/main/java/com/droiddeck/launcher/ui/FrameGenMenu.kt
+          S=app/src/main/res/values/strings.xml
+          absent 'return ImportResult.NOT_OWNED' "$L"
+          present 'markOwned(context)' "$L"
+          present 'importWorksWithoutPriorOwnership' "$T"
+          absent 'if (lossless.owned) {' "$M"
+          present 'Select Lossless.dll from your own copy' "$S"
+          present 'Needs Lossless Scaling' "$S"
+          echo "all fork edits are present in ${SHA:0:7}"
+
+      - name: Download the tested APK
+        run: |
+          set -euo pipefail
+          gh run download "$RUN_ID" --repo "$REPO" -n droiddeck-apk -D dl
+          [ "$(find dl -name '*.apk' | wc -l)" = 1 ] || { echo "::error::expected exactly one apk in the artifact"; find dl; exit 1; }
+
+      - name: Make and check the variants
+        run: |
+          set -euo pipefail
+          die() { echo "::error::$*"; exit 1; }
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          IN=$(find dl -name '*.apk')
+          P=com.droiddeck.launcher
+          TESTKEY=keystore/testkey.p12
+          TESTKEY_SHA256=a40da80a59d170caa950cf15c18c454d47a39b26989d8b640ecd745ba71bf5dc
+          export TESTKEY_PASSWORD=android
+          LABEL="${VERSION}-unofficial"
+          [ -f "$TESTKEY" ] || die "$TESTKEY is missing"
+          mkdir -p out work
+          n=0
+          while read -r variant pkg suffix; do
+            [ -n "$variant" ] || continue
+            if [ "$suffix" = - ]; then suffix=; fi
+            out="out/DroidDeck-${LABEL}${suffix}.apk"
+            if [ "$pkg" = "$P" ]; then
+              cp "$IN" "$out"
+            else
+              # the same package and authority renames tools/release/sign-apk.sh makes
+              mapfile -t MAPS < <(grep -oE '"\$P[A-Za-z0-9_.-]*=\$pkg[A-Za-z0-9_.-]*"' tools/release/sign-apk.sh | tr -d '"' | sed "s/\$P/$P/g; s/\$pkg/$pkg/g")
+              [ "${#MAPS[@]}" -ge 1 ] || die "$variant: found no rename list in tools/release/sign-apk.sh"
+              python3 tools/release/axml_rename.py "$IN" "work/$variant-renamed.apk" "${MAPS[@]}"
+              "$BT/zipalign" -p -f 4 "work/$variant-renamed.apk" "work/$variant-aligned.apk"
+              "$BT/apksigner" sign \
+                --ks "$TESTKEY" --ks-type PKCS12 --ks-pass env:TESTKEY_PASSWORD \
+                --ks-key-alias testkey --key-pass env:TESTKEY_PASSWORD \
+                --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --v4-signing-enabled false \
+                --out "$out" "work/$variant-aligned.apk"
+              rm -f "$out.idsig"
+              tree=$("$BT/aapt" dump xmltree "$out" AndroidManifest.xml)
+              bad=$(grep -E 'android:(authorities|taskAffinity)' <<<"$tree" | grep -F "\"$P." || true)
+              [ -z "$bad" ] || die "$variant: the manifest still names $P in an authority or task"
+            fi
+            got=$("$BT/aapt" dump badging "$out" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")
+            [ "$got" = "$pkg" ] || die "$variant: the apk says package '$got', not '$pkg'"
+            "$BT/apksigner" verify --min-sdk-version 26 "$out" >/dev/null || die "$variant: does not verify"
+            certs=$("$BT/apksigner" verify --min-sdk-version 28 --print-certs "$out")
+            seen=$(sed -n 's/^.*Signer.* certificate SHA-256 digest: //p' <<<"$certs" | sort -u)
+            [ "$seen" = "$TESTKEY_SHA256" ] || die "$variant: signer is [$seen], not the AOSP testkey"
+            echo "$variant ($pkg): ok -> $(basename "$out")"
+            n=$((n+1))
+          done < <(awk '!/^#/ && NF { print $1, $2, $3 }' tools/release/variants.txt)
+          [ "$n" -ge 1 ] || die "no variants found in tools/release/variants.txt"
+          ( cd out && sha256sum -- *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt )
+          ls -la out
+
+      - name: Build the release notes
+        run: |
+          set -euo pipefail
+          PREV=$(git tag --sort=-creatordate -l 'v*-unofficial-testkey' | grep -vxF "$TAG" | head -n1 || true)
+          LABEL="${VERSION}-unofficial"
+          {
+            printf '%s\n' '> **Unofficial** community build of DroidDeck, made from a personal fork and not affiliated with the DroidDeck project. It is signed with the public **AOSP testkey**, which anyone has, so only install builds from a source you trust. On a normal device the testkey gives no platform/system privileges.'
+            printf '%s\n' '>'
+            printf '%s\n' '> ✅ **Updates in place** over earlier unofficial testkey builds (same key and package), no need to uninstall.'
+            printf '%s\n' '> ⚠️ Coming from the official DroidDeck or any differently-signed build? Android will block the update with a signature conflict. Uninstalling fixes it but **wipes the app data**, so back up first.'
+            printf '%s\n' '> Play Protect may warn about the testkey: tap More details > Install anyway.'
+            printf '\n'
+            printf '%s\n' 'This build has a manual `Lossless.dll` picker for frame generation (LSFG). **It does not include Lossless.dll**: select the file from your own copy of Lossless Scaling.'
+          } > RELEASE_BODY.md
+
+          if [ -n "$PREV" ]; then
+            N=$(git rev-list --no-merges --count "${PREV}..${SHA}")
+            {
+              printf '\n'
+              printf '%s\n' "It includes **${N} commit(s)** since \`${PREV}\`, including upstream DroidDeck commits."
+              printf '\n'
+              printf '%s\n' '<details>'
+              printf '%s\n' "<summary><b>What's New</b> (click to expand)</summary>"
+              printf '\n'
+              git log --no-merges --pretty=format:'- %s' "${PREV}..${SHA}"
+              printf '\n\n'
+              printf '%s\n' '</details>'
+            } >> RELEASE_BODY.md
+          fi
+
+          {
+            printf '\n'
+            printf '%s\n' '## Downloads'
+            printf '%s\n' 'Each variant installs as its own app, with its own package name:'
+            printf '\n'
+            while read -r variant pkg suffix; do
+              [ -n "$variant" ] || continue
+              if [ "$suffix" = - ]; then suffix=; fi
+              printf '%s\n' "- **\`DroidDeck-${LABEL}${suffix}.apk\`**: ${variant}, package \`${pkg}\`"
+            done < <(awk '!/^#/ && NF { print $1, $2, $3 }' tools/release/variants.txt)
+            printf '\n'
+            printf '%s\n' 'SHA-256 of every file is in `SHA256SUMS.txt`.'
+            printf '\n'
+            printf '%s\n' "Built from commit \`${SHA:0:7}\` by [Build APK run ${RUN_ID}](https://github.com/${REPO}/actions/runs/${RUN_ID})."
+          } >> RELEASE_BODY.md
+
+          if [ -n "$PREV" ]; then
+            printf '\n%s\n' "**Full Changelog**: https://github.com/${REPO}/compare/${PREV}...${TAG}" >> RELEASE_BODY.md
+          fi
+
+          echo "----- RELEASE_BODY.md -----"
+          cat RELEASE_BODY.md
+
+      - name: Create the prerelease
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" out/*.apk out/SHA256SUMS.txt \
+            --repo "$REPO" \
+            --target "$SHA" \
+            --prerelease \
+            --latest=false \
+            --title "Unofficial DroidDeck ${VERSION} - Manual LSFG DLL Picker" \
+            --notes-file RELEASE_BODY.md
