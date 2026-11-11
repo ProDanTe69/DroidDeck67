@@ -86,8 +86,7 @@ jobs:
             exit 1
           fi
 
-          git commit -m "sync: merge upstream $UP_SHA"
-          
+          git commit -m "sync: merge upstream $UP_SHA"          
           git push origin HEAD:main || {
             echo "push failed (likely upstream changed .github/workflows and the token lacks workflow scope)"
             exit 1
