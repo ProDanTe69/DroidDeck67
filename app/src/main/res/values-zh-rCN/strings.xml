@@ -2291,6 +2291,7 @@
     <string name="stores_dl_interrupted">已中断</string>
     <string name="stores_install_size">安装 · %1$s</string>
     <string name="stores_get_free">免费领取</string>
+    <string name="stores_claiming">正在添加到游戏库…</string>
     <string name="stores_view_on">在 %1$s 上查看</string>
     <string name="stores_buy_price">购买 · %1$s</string>
     <string name="stores_installed_chip">已安装</string>
@@ -2552,6 +2553,8 @@
     <string name="gpu_use_title">使用 %1$s？</string>
     <string name="proton_remove_title">移除 %1$s？</string>
     <string name="setup_tab_diagnostics">诊断</string>
+    <string name="setup_build_watermark">构建标签水印</string>
+    <string name="setup_build_watermark_hint">在屏幕上显示测试版或 Lab 构建标签。默认启用。</string>
     <string name="setup_ready">可以游玩了</string>
     <string name="setup_not_ready">暂时还不能游玩</string>
     <string name="setup_ready_runtime">运行时 %1$s</string>

@@ -196,6 +196,7 @@ class FrontEndActivity : ComponentActivity() {
     private var stretch16x9 by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
+    private var homePage by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM)
     private var launcherFullscreen by mutableStateOf(true)
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
@@ -593,6 +594,7 @@ class FrontEndActivity : ComponentActivity() {
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
     private var graphicsLogs by mutableStateOf(false)
+    private var buildWatermark by mutableStateOf(true)
     private var steamGpuDrawing by mutableStateOf(false)
     private var bridgeFellBack by mutableStateOf(false)
     private var bridgeFellBackMemory by mutableStateOf(false)
@@ -828,6 +830,10 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun readGameIntent(request: Intent) {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
+        if (navRequest == com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_APPS) {
+            homeAppSelected = HomeApp.isHomeScreenEnabled(this) && HomeApp.isDefault(this)
+            if (!homeAppSelected) navRequest = null
+        }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
         if (shortcutPicker) {
             steamGames = emptyList()
@@ -1105,6 +1111,8 @@ class FrontEndActivity : ComponentActivity() {
         gameSpaceOffered = savedInstanceState?.getBoolean(STATE_GAME_SPACE_OFFERED) == true
         if (savedInstanceState == null) readIntegrationIntent(intent)
         readGameIntent(intent)
+        // A Lab build is usually the agent's work, so the app comes back where the agent is.
+        if (savedInstanceState == null && navRequest == null && com.droiddeck.launcher.lab.LabOverlay.promoted && com.droiddeck.launcher.agent.AgentTab.visible) navRequest = "agent"
         gameSyncFolder = GameFileSync.folder(this)
         displayManager = getSystemService(DISPLAY_SERVICE) as DisplayManager
         refreshPhantomStatus()
@@ -1119,6 +1127,7 @@ class FrontEndActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
+        homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         launcherFullscreen = SessionPrefs.launcherFullscreen(this)
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
@@ -1176,6 +1185,7 @@ class FrontEndActivity : ComponentActivity() {
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         graphicsLogs = graphicsLogs, steamGpuDrawing = steamGpuDrawing, bridgeFellBack = bridgeFellBack, bridgeFellBackMemory = bridgeFellBackMemory,
+                        buildWatermark = buildWatermark,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         tpUbwcMode = drivers.tpUbwcModeForDevice(), tpUbwcRestartRequired = drivers.tpUbwcRestartRequired(), canRestartApp = !runtimeChangesBlocked(),
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
@@ -1214,6 +1224,7 @@ class FrontEndActivity : ComponentActivity() {
                         showPhantomGate = showPhantomGate,
                         orientation = orientation,
                         launcherOrientation = launcherOrientation,
+                        homePage = homePage,
                         launcherFullscreen = launcherFullscreen,
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
@@ -1414,6 +1425,11 @@ class FrontEndActivity : ComponentActivity() {
                             SessionPrefs.setDetailedGraphicsLogs(this, !SessionPrefs.detailedGraphicsLogs(this))
                             graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
                         },
+                        onBuildWatermark = {
+                            SessionPrefs.setBuildWatermarkEnabled(this, !SessionPrefs.buildWatermarkEnabled(this))
+                            buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
+                            com.droiddeck.launcher.ui.BuildWatermark.refresh(this)
+                        },
                         onVacDiagnostics = {
                             SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
                             vacDiagnostics = SessionPrefs.vacDiagnostics(this)
@@ -1505,6 +1521,10 @@ class FrontEndActivity : ComponentActivity() {
                             com.droiddeck.launcher.core.AppUiPrefs.setOrientation(this, value)
                             launcherOrientation = value
                             requestedOrientation = value
+                        },
+                        onHomePage = { value ->
+                            com.droiddeck.launcher.core.AppUiPrefs.setHomePage(this, value)
+                            homePage = value
                         },
                         onLauncherFullscreen = { on ->
                             SessionPrefs.setLauncherFullscreen(this, on)
@@ -1898,6 +1918,7 @@ class FrontEndActivity : ComponentActivity() {
         orientation = SessionPrefs.orientation(this)
         launcherOrientation = com.droiddeck.launcher.core.AppUiPrefs.orientation(this)
         requestedOrientation = launcherOrientation
+        homePage = com.droiddeck.launcher.core.AppUiPrefs.homePage(this)
         SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
@@ -2865,6 +2886,7 @@ class FrontEndActivity : ComponentActivity() {
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         graphicsLogs = SessionPrefs.detailedGraphicsLogs(this)
+        buildWatermark = SessionPrefs.buildWatermarkEnabled(this)
         steamGpuDrawing = SessionPrefs.steamGpuCompositing(this)
         bridgeFellBack = SessionPrefs.bridgeFellBack(this)
         bridgeFellBackMemory = SessionPrefs.bridgeFellBackForMemory(this)
@@ -3044,6 +3066,7 @@ class FrontEndActivity : ComponentActivity() {
                 com.droiddeck.launcher.core.AppLanguage.setChosen(this, com.droiddeck.launcher.core.AppLanguage.SYSTEM)
                 if (!ok) android.widget.Toast.makeText(this, R.string.setup_reset_settings_partial, android.widget.Toast.LENGTH_LONG).show()
                 com.droiddeck.launcher.ui.Motion.refresh(this)
+                com.droiddeck.launcher.agent.AgentTab.load(this)
                 if (!switchLauncherIcon(LauncherIcon.DARK)) recreate()
             }
         }, "reset-settings").start()
@@ -3079,6 +3102,7 @@ class FrontEndActivity : ComponentActivity() {
                     android.widget.Toast.makeText(this, it, android.widget.Toast.LENGTH_LONG).show()
                 }
                 refresh()
+                com.droiddeck.launcher.agent.AgentHost.refresh(this)
                 if (ok == true && LinuxRuntime.isInstalled(this)) protons.checkUpdates()
             }
         }, "runtime-operation").start()

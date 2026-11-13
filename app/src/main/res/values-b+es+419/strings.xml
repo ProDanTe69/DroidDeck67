@@ -2304,6 +2304,7 @@
     <string name="stores_dl_interrupted">Interrumpida</string>
     <string name="stores_install_size">Instalar · %1$s</string>
     <string name="stores_get_free">Obtener gratis</string>
+    <string name="stores_claiming">Agregando a la biblioteca…</string>
     <string name="stores_view_on">Ver en %1$s</string>
     <string name="stores_buy_price">Comprar · %1$s</string>
     <string name="stores_installed_chip">Instalado</string>
@@ -2611,6 +2612,8 @@
     <string name="comp_this_device">Este dispositivo</string>
     <string name="proton_remove_title">¿Quitar %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnóstico</string>
+    <string name="setup_build_watermark">Marca de agua de compilación</string>
+    <string name="setup_build_watermark_hint">Muestra en pantalla la etiqueta de la versión de prueba o Lab. Activada de forma predeterminada.</string>
     <string name="setup_ready">Listo para jugar</string>
     <string name="setup_not_ready">Aún no está listo para jugar</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

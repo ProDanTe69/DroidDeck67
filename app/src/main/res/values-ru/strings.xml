@@ -2368,6 +2368,7 @@
     <string name="stores_dl_interrupted">Прервано</string>
     <string name="stores_install_size">Установить · %1$s</string>
     <string name="stores_get_free">Получить бесплатно</string>
+    <string name="stores_claiming">Добавление в библиотеку…</string>
     <string name="stores_view_on">Открыть в %1$s</string>
     <string name="stores_buy_price">Купить · %1$s</string>
     <string name="stores_installed_chip">Установлено</string>
@@ -2700,6 +2701,8 @@
     <string name="comp_this_device">Это устройство</string>
     <string name="proton_remove_title">Удалить %1$s?</string>
     <string name="setup_tab_diagnostics">Диагностика</string>
+    <string name="setup_build_watermark">Водяной знак с меткой сборки</string>
+    <string name="setup_build_watermark_hint">Показывать на экране метку тестовой сборки или сборки Lab. Включено по умолчанию.</string>
     <string name="setup_ready">Готово к игре</string>
     <string name="setup_not_ready">Пока не готово к игре</string>
     <string name="setup_ready_runtime">среда выполнения %1$s</string>

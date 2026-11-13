@@ -2285,6 +2285,7 @@
     <string name="stores_dl_interrupted">Przerwano</string>
     <string name="stores_install_size">Instalacja · %1$s</string>
     <string name="stores_get_free">Odbierz bezpłatnie</string>
+    <string name="stores_claiming">Dodawanie do biblioteki…</string>
     <string name="stores_view_on">Zobacz w %1$s</string>
     <string name="stores_buy_price">Kup · %1$s</string>
     <string name="stores_installed_chip">Zainstalowano</string>
@@ -2620,6 +2621,8 @@
     <string name="comp_this_device">To urządzenie</string>
     <string name="proton_remove_title">Usunąć %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostyka</string>
+    <string name="setup_build_watermark">Znak wodny z etykietą kompilacji</string>
+    <string name="setup_build_watermark_hint">Pokazuj na ekranie etykietę kompilacji testowej lub Lab. Domyślnie włączone.</string>
     <string name="setup_ready">Gotowe do gry</string>
     <string name="setup_not_ready">Jeszcze nie gotowe do gry</string>
     <string name="setup_ready_runtime">środowisko %1$s</string>

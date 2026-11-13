@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">Onderbroken</string>
     <string name="stores_install_size">Installeren · %1$s</string>
     <string name="stores_get_free">Gratis verkrijgen</string>
+    <string name="stores_claiming">Toevoegen aan bibliotheek…</string>
     <string name="stores_view_on">Bekijken op %1$s</string>
     <string name="stores_buy_price">Kopen · %1$s</string>
     <string name="stores_installed_chip">Geïnstalleerd</string>
@@ -2566,6 +2567,8 @@
     <string name="comp_this_device">Dit apparaat</string>
     <string name="proton_remove_title">%1$s verwijderen?</string>
     <string name="setup_tab_diagnostics">Diagnostiek</string>
+    <string name="setup_build_watermark">Buildlabel als watermerk</string>
+    <string name="setup_build_watermark_hint">Toon het label van de testbuild of Lab-build op het scherm. Standaard ingeschakeld.</string>
     <string name="setup_ready">Klaar om te spelen</string>
     <string name="setup_not_ready">Nog niet klaar om te spelen</string>
     <string name="setup_ready_runtime">runtime %1$s</string>

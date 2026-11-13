@@ -2235,6 +2235,7 @@
     <string name="stores_dl_interrupted">बाधित</string>
     <string name="stores_install_size">इंस्टॉल · %1$s</string>
     <string name="stores_get_free">मुफ़्त में पाएं</string>
+    <string name="stores_claiming">लाइब्रेरी में जोड़ा जा रहा है…</string>
     <string name="stores_view_on">%1$s पर देखें</string>
     <string name="stores_buy_price">खरीदें · %1$s</string>
     <string name="stores_installed_chip">इंस्टॉल है</string>
@@ -2566,6 +2567,8 @@
     <string name="comp_this_device">यह डिवाइस</string>
     <string name="proton_remove_title">%1$s हटाएं?</string>
     <string name="setup_tab_diagnostics">डायग्नोस्टिक्स</string>
+    <string name="setup_build_watermark">बिल्ड लेबल वॉटरमार्क</string>
+    <string name="setup_build_watermark_hint">स्क्रीन पर टेस्ट या Lab बिल्ड लेबल दिखाएँ। डिफ़ॉल्ट रूप से चालू।</string>
     <string name="setup_ready">खेलने के लिए तैयार</string>
     <string name="setup_not_ready">अभी खेलने के लिए तैयार नहीं</string>
     <string name="setup_ready_runtime">रनटाइम %1$s</string>

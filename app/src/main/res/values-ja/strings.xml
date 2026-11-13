@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">中断</string>
     <string name="stores_install_size">インストール · %1$s</string>
     <string name="stores_get_free">無料で入手</string>
+    <string name="stores_claiming">ライブラリに追加中…</string>
     <string name="stores_view_on">%1$sで見る</string>
     <string name="stores_buy_price">購入 · %1$s</string>
     <string name="stores_installed_chip">インストール済み</string>
@@ -2539,6 +2540,8 @@
     <string name="comp_this_device">このデバイス</string>
     <string name="proton_remove_title">%1$sを削除しますか？</string>
     <string name="setup_tab_diagnostics">診断</string>
+    <string name="setup_build_watermark">ビルドラベルの透かし</string>
+    <string name="setup_build_watermark_hint">テストビルドまたはLabビルドのラベルを画面に表示します。デフォルトで有効です。</string>
     <string name="setup_ready">プレイの準備完了</string>
     <string name="setup_not_ready">まだプレイの準備ができていません</string>
     <string name="setup_ready_runtime">実行環境 %1$s</string>

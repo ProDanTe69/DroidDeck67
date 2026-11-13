@@ -2210,6 +2210,7 @@
     <string name="stores_dl_interrupted">Terhenti</string>
     <string name="stores_install_size">Instal · %1$s</string>
     <string name="stores_get_free">Dapatkan gratis</string>
+    <string name="stores_claiming">Menambahkan ke pustaka…</string>
     <string name="stores_view_on">Lihat di %1$s</string>
     <string name="stores_buy_price">Beli · %1$s</string>
     <string name="stores_installed_chip">Terinstal</string>
@@ -2539,6 +2540,8 @@
     <string name="comp_this_device">Perangkat ini</string>
     <string name="proton_remove_title">Hapus %1$s?</string>
     <string name="setup_tab_diagnostics">Diagnostik</string>
+    <string name="setup_build_watermark">Tanda air label build</string>
+    <string name="setup_build_watermark_hint">Tampilkan label build pengujian atau Lab di layar. Aktif secara default.</string>
     <string name="setup_ready">Siap bermain</string>
     <string name="setup_not_ready">Belum siap bermain</string>
     <string name="setup_ready_runtime">runtime %1$s</string>
