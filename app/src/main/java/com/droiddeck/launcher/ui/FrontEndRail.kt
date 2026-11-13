@@ -105,13 +105,16 @@ internal fun BottomBar(
     val bounds = remember { androidx.compose.runtime.mutableStateMapOf<String, androidx.compose.ui.geometry.Rect>() }
     val tint = androidx.compose.runtime.rememberUpdatedState(LocalPalette.current.signal)
     val content = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    val barContext = LocalContext.current
+    remember { RailLabels.load(barContext) }
+    val iconOnly = !RailLabels.shown
     Row(modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface), verticalAlignment = Alignment.CenterVertically) {
         BoxWithConstraints(Modifier.weight(1f)) {
             val itemWidth = (maxWidth / keys.size).coerceIn(56.dp, 88.dp)
             Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPlaced { content[0] = it }) {
                 if (shown in keys) ChipGlide(keys.indexOf(shown), bounds[shown], tint, GlideAxis.Horizontal, corner = 14.dp, fill = 0.14f, outline = 0f)
                 Row(Modifier.selectableGroup().padding(vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
-                    NavigationItems(s, shown, compact = true, iconOnly = false, height = 56.dp, width = itemWidth,
+                    NavigationItems(s, shown, compact = true, iconOnly = iconOnly, height = if (iconOnly) 48.dp else 56.dp, width = itemWidth,
                         place = { key -> Modifier.onGloballyPositioned { item -> content[0]?.let { bounds[key] = it.localBoundingBoxOf(item) }; Hops.railBounds[key] = item.boundsInRoot() } },
                         onSelect = onSelect, onFocusSelect = onFocusSelect)
                 }
@@ -123,6 +126,7 @@ internal fun BottomBar(
 
 internal fun navigationKeys(s: FrontEndState) = buildList {
     add("steam"); add("games")
+    if (s.soundtracksEnabled) add("soundtracks")
     if (s.gameStoresEnabled) add("stores")
     add("desktop")
     if (com.droiddeck.launcher.agent.AgentTab.visible) add("agent")
@@ -197,6 +201,7 @@ internal fun SideRail(
 internal fun railLabelIcon(key: String): Pair<Int, ImageVector> = when (key) {
     "steam" -> R.string.rail_steam to Icons.Outlined.SportsEsports
     "games" -> R.string.rail_games to Icons.Outlined.VideoLibrary
+    "soundtracks" -> R.string.rail_music to SoundtrackIcon
     "stores" -> R.string.rail_stores to Icons.Outlined.LocalMall
     "desktop" -> R.string.rail_desktop to Icons.Outlined.DesktopWindows
     "components" -> R.string.rail_components to Icons.Outlined.Layers
