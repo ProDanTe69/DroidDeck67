@@ -62,6 +62,11 @@ jobs:
 
           REPORT=report.md
           echo "# upstream sync report ($UP_SHA, $BEHIND new commits)" > $REPORT
+          {
+            echo
+            echo "## new upstream commits"
+            git log --no-merges --format='- %h %s' HEAD..upstream/main | head -100
+          } >> $REPORT
           PROBLEM=0
 
           # 1) which of your files upstream also changed (info only)
@@ -136,11 +141,15 @@ jobs:
               echo
               echo "## RESULT: safe. the test merge is clean and all your edits are intact."
               echo
-              echo "to merge: Actions > Sync merge (manual) > Run workflow > upstream_sha = $UP_SHA"
+              echo "to merge: Actions > Sync merge (manual) > Run workflow > leave upstream_sha empty (merges all new commits)"
             } >> $REPORT
             TITLE="upstream safe to merge ($UP_SHA)"
           fi
           cat $REPORT
-          if [ -z "$(gh issue list --repo "$REPO" --state open --search "$UP_SHA in:title" --json number --jq '.[0].number')" ]; then
+          TITLE="upstream sync: ${TITLE#upstream } - $BEHIND new commits"
+          OPEN=$(gh issue list --repo "$REPO" --state open --search "upstream sync in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN" ]; then
+            gh issue edit "$OPEN" --repo "$REPO" --title "$TITLE" --body-file $REPORT
+          else
             gh issue create --repo "$REPO" --title "$TITLE" --body-file $REPORT
           fi
