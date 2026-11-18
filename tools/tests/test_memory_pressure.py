@@ -204,6 +204,27 @@ SECONDS=30; bl_session_pressure
         self.memory(total=16384, available=3072, psi='1.23')
         self.assertEqual(['send:1:session'], self.run_policy('bl_session_pressure'))
 
+    def test_a_fast_fall_on_a_large_device_reclaims_above_the_fixed_headroom(self):
+        self.memory(total=15255, available=6176)
+        falling = self.root / 'falling'
+        falling.write_text(
+            f'MemTotal: {15255 * 1024} kB\nMemAvailable: {5367 * 1024} kB\n'
+            f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
+        meminfo = self.root / 'meminfo'
+        self.assertEqual(['send:1:session'], self.run_policy(
+            f'cp {falling} {meminfo}\nSECONDS=5; bl_session_pressure'))
+
+    def test_a_fall_split_across_one_second_polls_still_reclaims(self):
+        self.memory(total=15255, available=6300)
+        steps = []
+        for second, available in ((5, 6100), (6, 6020), (7, 5940), (8, 5860), (9, 5780)):
+            sample = self.root / f'meminfo-{second}'
+            sample.write_text(
+                f'MemTotal: {15255 * 1024} kB\nMemAvailable: {available * 1024} kB\n'
+                f'SwapTotal: {8192 * 1024} kB\nSwapFree: {6144 * 1024} kB\n')
+            steps.append(f'cp {sample} {self.root / "meminfo"}; SECONDS={second}; bl_session_pressure')
+        self.assertEqual(['send:1:session'], self.run_policy('\n'.join(steps)))
+
     def test_no_game_does_not_compress_the_session(self):
         self.assertEqual([], self.run_policy('_bl_game=0; bl_session_pressure'))
 
@@ -455,7 +476,7 @@ class ReclaimDispatchTest(unittest.TestCase):
             source = source.replace('/tmp/.bl-zram', str(root / 'ctl'))
             monitor = SCRIPT.read_text()
             start = monitor.index('          _bl_preserved_growth=$_bl_growth', monitor.index('while kill -0 $$'))
-            stop = monitor.index('          if [ "$_bl_game" = 1 ] && bl_game_focused', start)
+            stop = monitor.index('          _bl_focus=1\n', start)
             cycle = monitor[start:stop] if body is None else body
             script = f'''
 set -u

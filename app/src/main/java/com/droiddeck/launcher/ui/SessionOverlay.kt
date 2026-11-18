@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.PowerSettingsNew
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ScreenShare
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
@@ -186,7 +185,7 @@ private val SessionDrawerPage.icon get() = when (this) {
     SessionDrawerPage.VR -> VrHeadsetIcon
     SessionDrawerPage.EFFECTS -> Icons.Outlined.AutoFixHigh
     SessionDrawerPage.GAMES -> Icons.Outlined.Layers
-    SessionDrawerPage.AGENT -> Icons.Outlined.AutoAwesome
+    SessionDrawerPage.AGENT -> Icons.Outlined.Terminal
     SessionDrawerPage.SESSION -> Icons.Outlined.Settings
 }
 
@@ -262,6 +261,7 @@ class DrawerActions(
     val secondScreenNone: Boolean = true,
     val gameOnBottom: Boolean = false,
     val gameSwapAvailable: Boolean = false,
+    val gameSwapBuiltIn: Boolean = true,
     val onGameOnBottom: (Boolean) -> Unit = {},
     val dashboardAvailable: Boolean = false,
     val desktopAvailable: Boolean = false,
@@ -1303,7 +1303,8 @@ private fun SecondScreenGroup(host: MenuHost, a: DrawerActions, track: (String) 
     }
     if (a.gameSwapAvailable || a.gameOnBottom) SettingsGroup(stringResource(R.string.swap_game_screen_group)) {
         ChoiceRow(host, "game-screen", stringResource(R.string.swap_game_screen), null,
-            listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom)),
+            if (a.gameSwapBuiltIn) listOf(false to stringResource(R.string.swap_game_screen_top), true to stringResource(R.string.swap_game_screen_bottom))
+            else listOf(false to stringResource(R.string.main_primary), true to stringResource(R.string.main_secondary)),
             a.gameOnBottom, chipModifier = track("game-screen"), onPick = a.onGameOnBottom)
     }
 }

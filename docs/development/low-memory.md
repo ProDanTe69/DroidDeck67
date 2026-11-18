@@ -20,6 +20,12 @@ retry delay, up to five minutes. After game exit, speculative launcher readback 
 until the session is under any explicit RAM cap, pressure has subsided, and available RAM
 can cover twice the launcher's swap while leaving the headroom reserve. Normal demand paging
 continues while readback is deferred; Steam does not have to wait for the monitor to recover.
+The same readback runs while the game is still running once the client has been in front of it
+for five seconds (a game stuck on a black screen and left through Steam, or a long stay in the
+Steam menu), under the same memory checks and only without an explicit RAM cap. Missing or
+unreadable focus data never counts as the client in front. Demand paging
+alone left the Steam library and menus blank for about half a minute in that case. The
+client is compressed again 20 seconds after the game is back in front.
 Missing memory counters disable automatic pressure reclaim and speculative readback. Missing
 PSI alone still permits the `MemAvailable` fallback. No root settings, swap sizes, compression
 algorithms, Android process priorities or game-specific settings are changed.
@@ -58,7 +64,7 @@ and the RAM cap are unaffected.
 The session request runs when real headroom falls below a quarter of RAM (bounded to
 768–2560 MiB), or below one and a half times that with at least 1% `some` or `full avg10`
 memory stall. Real headroom subtracts positive growth in KGSL allocation, `Unevictable`, and
-`Shmem` from `MemAvailable`; a rapid fall also qualifies near twice the headroom. The monitor
+`Shmem` from `MemAvailable`; a rapid fall also qualifies below twice the headroom or two fifths of RAM, whichever is larger (a 15 GB Thor Max was killed with 5.3 GB still available while memory fell about 400 MB per tick). The monitor
 may first request page-out of idle Steam and hidden launchers, subject to the Performance
 setting and client reclaim limits. When both qualify, both requests are sent before waiting
 for either to complete, so a slow launcher acknowledgement does not delay the game request. Until the client
