@@ -194,6 +194,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var picturePosition by mutableStateOf("center")
     private var integerScaling by mutableStateOf(false)
     private var stretch16x9 by mutableStateOf(false)
+    private var avoidNotch by mutableStateOf(false)
     private var orientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
     private var launcherOrientation by mutableStateOf(android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER)
     private var homePage by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.HOME_PAGE_STEAM)
@@ -596,9 +597,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
     private var theme by mutableStateOf("graphite")
     private var appScale by mutableStateOf(com.droiddeck.launcher.core.AppUiPrefs.DEFAULT_SCALE)
     private var hdrOn by mutableStateOf(false)
+    private var zeroCopyOn by mutableStateOf(true)
     private var upscaler by mutableStateOf(0)
     private var upscaleSharpness by mutableStateOf(75)
     private var hdrReason by mutableStateOf<String?>(null)
+    private var hdrDisplay by mutableStateOf(true)
     private var touchMode by mutableStateOf(SessionPrefs.TOUCH_AUTO)
     private var pen by mutableStateOf<SessionPrefs.Pen?>(null)
     private var suspendPolicy by mutableStateOf(SessionPrefs.SUSPEND_MANUAL)
@@ -2079,6 +2082,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             refreshHomeAppState()
         }
         if (settingsMode == SessionService.MODE_STEAM) refreshFoundSteamLibraries()
+        settingsMode?.let { hdrOn = SessionPrefs.hdr(this, it) }
         compatLaunchVisible = true
         com.droiddeck.launcher.ui.DualScreenPanel.yieldTo(taskId, false)
         com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, false)
@@ -2586,7 +2590,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
             ModeSettings(
                 mode = mode, resolution = resolution,
                 panelSize = com.droiddeck.launcher.session.SessionDisplay.panelSize(this),
-                hdr = hdrOn, hdrReason = hdrReason,
+                hdr = hdrOn, hdrReason = hdrReason, hdrDisplay = hdrDisplay, zeroCopy = zeroCopyOn,
                 upscaler = upscaler, upscaleSharpness = upscaleSharpness,
                 gpuDrivers = drivers.summary(),
                 touchMode = touchMode,
@@ -2604,6 +2608,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 picturePosition = if (mode == SessionService.MODE_STEAM) picturePosition else null,
                 integerScaling = if (mode == SessionService.MODE_STEAM) integerScaling else null,
                 stretch16x9 = if (mode == SessionService.MODE_STEAM) stretch16x9 else null,
+                avoidNotch = if (mode == SessionService.MODE_STEAM) avoidNotch else null,
                 mic = if (mode == SessionService.MODE_STEAM) mic else null,
                 gameStorage = if (mode == SessionService.MODE_STEAM) gameStorage else null,
                 storageOptions = storageOptions,
@@ -2639,7 +2644,13 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onIntegrationAppInfo = ::openAppInfo,
                 onIntegrationLocation = ::openWifiDiscoverySettings,
                 onResolution = { value -> SessionPrefs.setResolutionChoice(this, mode, value); resolution = value },
-                onHdr = { on -> SessionPrefs.setHdr(this, mode, on); hdrOn = on },
+                onHdr = { on -> com.droiddeck.launcher.session.SessionHdr.set(this, mode, on); hdrOn = on },
+                onZeroCopy = { on ->
+                    SessionPrefs.setZeroCopy(this, mode, on); zeroCopyOn = on
+                    if (com.droiddeck.launcher.wayland.CompositorHost.isStarted && !SessionState.hdr &&
+                        SessionPrefs.prefMode(SessionState.mode) == SessionPrefs.prefMode(mode))
+                        com.droiddeck.launcher.wayland.WaylandCompositor.nativeSetZeroCopy(on)
+                },
                 onGpuDrivers = { openComponents(focusContent = true, tab = com.droiddeck.launcher.ui.GPU_TAB) },
                 onUpscaler = { m -> SessionPrefs.setUpscaler(this, m); upscaler = m },
                 onUpscaleSharpness = { pct -> SessionPrefs.setUpscaleSharpness(this, pct); upscaleSharpness = pct },
@@ -2666,6 +2677,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
                 onPicturePosition = { value -> SessionPrefs.setPicturePosition(this, value); picturePosition = value },
                 onIntegerScaling = { on -> SessionPrefs.setIntegerScaling(this, on); integerScaling = on },
                 onStretch16x9 = { on -> SessionPrefs.setStretch16x9(this, on); stretch16x9 = on },
+                onAvoidNotch = { on -> SessionPrefs.setAvoidNotch(this, on); avoidNotch = on },
                 onMic = { on ->
                     SessionPrefs.setMicEnabled(this, on)
                     mic = on
@@ -2983,9 +2995,11 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         startupSession = SessionPrefs.startupSession(this)
         loadBootMovie()
         hdrOn = SessionPrefs.hdr(this, mode)
+        zeroCopyOn = SessionPrefs.zeroCopy(this, mode)
         upscaler = SessionPrefs.upscaler(this)
         upscaleSharpness = SessionPrefs.upscaleSharpness(this)
-        hdrReason = com.droiddeck.launcher.wayland.HdrSupport.probe(this).reason
+        hdrReason = com.droiddeck.launcher.wayland.HdrSupport.blocked(this)
+        hdrDisplay = com.droiddeck.launcher.wayland.HdrSupport.probe(this).reason == null
         touchMode = SessionPrefs.touchMode(this)
         if (!SessionPrefs.penSeen(this) && com.droiddeck.launcher.input.PenStream.penConnected()) SessionPrefs.setPenSeen(this)
         pen = SessionPrefs.pen(this).takeIf { SessionPrefs.penSeen(this) }
@@ -2998,6 +3012,7 @@ class FrontEndActivity : ComponentActivity(), com.droiddeck.launcher.ui.AgentPet
         picturePosition = SessionPrefs.picturePosition(this)
         integerScaling = SessionPrefs.integerScaling(this)
         stretch16x9 = SessionPrefs.stretch16x9(this)
+        avoidNotch = SessionPrefs.avoidNotch(this)
         mic = SessionPrefs.micEnabled(this)
         refreshWifiDiscovery()
         gameStorage = SessionPrefs.gameStorage(this)
