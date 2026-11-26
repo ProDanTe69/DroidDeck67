@@ -163,6 +163,7 @@ struct layer {
     ARect geo_src, geo_dst;
     int geo_valid;
     int alloc_tier;
+    unsigned import_failed_fmts;
     uint64_t pool_modifier;
     int first_logged;
     int64_t drop_logged_ns;
@@ -487,7 +488,8 @@ static const char *tier_name(int tier) {
 
 static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fmt) {
     g_alloc_failed = 0;
-    while (l->alloc_tier <= TIER_LINEAR) {
+    const unsigned fmt_bit = fmt == AHB_RGB10A2 ? 2u : 1u;
+    while (l->alloc_tier <= TIER_LINEAR && !(l->import_failed_fmts & fmt_bit)) {
         const int tier = l->alloc_tier;
         AHardwareBuffer_Desc d = {
             .width = (uint32_t)w, .height = (uint32_t)h, .layers = 1,
@@ -518,6 +520,10 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
             img = vkp_image_import_dmabuf(nh->data[0], fmt == AHB_RGB10A2 ? DRM_ABGR2101010 : DRM_ABGR8888, mod, w, h,
                                           got.stride * 4, 0, 1);
             path = "dma-buf (QTI handle)";
+            if (!img && mod == MOD_LINEAR && vkp_can_import_ahb()) {
+                img = vkp_image_import_ahb(ahb, info, sizeof(info));
+                if (img) { mod = SC_MOD_GRALLOC; path = "AHardwareBuffer"; }
+            }
         } else {
             if (tier == TIER_UBWC) {
                 char hd[256];
@@ -556,6 +562,7 @@ static int alloc_slot(struct layer *l, struct slot *s, int w, int h, uint32_t fm
                        nh ? nh->numFds : -1, nh ? nh->numInts : -1, hd);
             AHardwareBuffer_release(ahb);
             if (tier < TIER_LINEAR) { l->alloc_tier = tier + 1; continue; }
+            l->import_failed_fmts |= fmt_bit;
             g_alloc_failed = 1;
             return -1;
         }
@@ -941,7 +948,7 @@ int sc_layer_present(struct vkp_image *src, int scene_w, int scene_h, const stru
 
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, r, color, 0) != 0) return -1;
     if (color && color->dataspace) droiddeck_color_frame_shown(color, DROIDDECK_HDR_LAYER_COPY, AHB_RGBA8);
@@ -1150,7 +1157,7 @@ int sc_layer_present_overlay(struct vkp_image *src, const int geo[8], int transl
     if (sw <= 0 || sh <= 0) return -1;
     int wait_fd;
     int idx = take_free_slot(l, sw, sh, AHB_RGBA8, &wait_fd);
-    if (idx < 0) { log_drop(l); return 0; }
+    if (idx < 0) { log_drop(l); return g_alloc_failed ? -1 : 0; }
     if (vkp_blit_image(src, l->slots[idx].img, wait_fd) != 0) return -1;
     if (present_slot(l, idx, geo, NULL, translucent) != 0) return -1;
     if (!l->first_logged) {
